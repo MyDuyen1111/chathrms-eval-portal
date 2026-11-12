@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Runs · Chatbot Eval Portal{% endblock %}
+{% block content %}
+<div class="titlebar">
+  <h1>Runs</h1>
+  {% if g.user.role == 'QC' %}<a class="btn" href="{{ url_for('portal.new_run') }}">New run</a>{% endif %}
+</div>
+<form method="get" class="row">
+  <label class="sr" for="f-product">Product</label>
+  <select id="f-product" name="product" data-autosubmit><option value="">{{ t("All products") }}</option>{% for item in products %}<option {% if item == product %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+  <label class="sr" for="f-set">Set</label>
+  <select id="f-set" name="set" data-autosubmit><option value="">{{ t("All sets") }}</option>{% for item in sets %}<option {% if item == set_name %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+  <label class="sr" for="f-version">Version</label>
+  <select id="f-version" name="version" data-autosubmit><option value="">{{ t("All versions") }}</option>{% for item in labels %}<option {% if item == version %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+  <noscript><button class="btn sec">{{ t("Filter") }}</button></noscript>
+</form>
+{% if runs %}
+<div class="scroll">
+<table>
+  <thead><tr><th>Run</th><th>{{ t("Type") }}</th><th>Judge prompt</th><th class="num">Judge pass rate</th><th class="num">{{ t("Acceptance after review") }}</th><th>{{ t("vs previous official") }}</th><th>Review</th></tr></thead>
+  <tbody>
+  {% for run in runs %}
+  <tr class="go">
+    <td><a class="rowlink mono" href="{{ url_for('portal.run_page', run_id=run.id) }}">{{ run.name }}</a>
+      {% if run.status != 'Completed' %}<span class="b {{ 'run' if run.status == 'Running' else 'bad' }}">{{ run.status }}</span>{% endif %}</td>
+    <td>{{ run.run_type }}{% if run.milestone %} · {{ run.milestone }}{% endif %}</td>
+    <td class="mono">{{ run.judge_prompt or '—' }}</td>
+    <td class="num">{{ run.judge|rate }}</td>
+    <td class="num">{% if run.after %}<b>{{ run.after|rate }}</b>{% else %}—{% endif %}</td>
+    <td>{{ run.versus|margin_badge }}</td>
+    <td>{% if run.review == 'Done' %}<span class="b ok">{{ t("Done") }}</span>
+      {% elif run.review == '—' %}—
+      {% else %}<a class="over" href="{{ url_for('portal.run_page', run_id=run.id, tab='review') }}">{{ run.review }}</a>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% elif product or set_name or version %}
+<p class="hint">{{ t("No runs match these filters.") }} <a href="{{ url_for('portal.runs') }}">{{ t("Show all runs") }}</a></p>
+{% else %}
+<p class="hint">{{ t("No runs yet. Upload a file on") }} <a href="{{ url_for('portal.eval_sets') }}">Eval sets</a>{{ t("; runs can use it after BA locks it.") }}</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "_ui.html" import lock %}
+{% block title %}Eval sets · Chatbot Eval Portal{% endblock %}
+{% block content %}
+<p class="crumb">Eval sets / {{ product }}</p>
+<h1>{{ product }} eval set {% if has_draft %}<span class="b neu">Draft</span>{% endif %}</h1>
+<nav class="tabs" aria-label="Product">
+  {% for item in products %}<a href="{{ url_for('portal.eval_sets', product=item) }}" {% if item == product %}aria-current="page"{% endif %}>{{ item }}</a>{% endfor %}
+</nav>
+
+<div class="row">
+  {% if g.user.role == 'QC' %}
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('portal.upload', product=product) }}" class="inline">
+    {{ csrf_field() }}
+    <input class="sr" id="file" type="file" name="file" accept=".xlsx" required data-autosubmit>
+    <label class="btn sec" for="file" data-busy="{{ t('Uploading…') }}">Upload .xlsx</label>
+    <noscript><button class="btn">Upload</button></noscript>
+  </form>
+  {% endif %}
+  {% if uploaded %}<span>{{ t("{file} · uploaded by {name} · {rows} rows", file=uploaded[0], name=uploaded[1], rows=uploaded[2]) }}</span>{% endif %}
+</div>
+
+{% if saved %}<p class="msg ok" role="status">{{ t("The file passed and is saved as Draft. Runs can use it after BA locks it.") }}</p>{% endif %}
+{% if locked %}<p class="msg ok" role="status">{{ t("Locked as {label}. Runs can use it now.", label=locked) }}</p>{% endif %}
+{% if no_leak %}<p class="msg wrn" role="status">{% if no_leak == 1 %}{{ t("{n} Safety case in {version} has no leak_strings. The code check for planted strings cannot run on them, so only the judge grades them.", n=no_leak, version=versions[0].label or 'Draft') }}{% else %}{{ t("{n} Safety cases in {version} have no leak_strings. The code check for planted strings cannot run on them, so only the judge grades them.", n=no_leak, version=versions[0].label or 'Draft') }}{% endif %}</p>{% endif %}
+{% if errors %}
+<p class="msg err" role="alert"><b>{% if errors|length == 1 %}{{ t("Validation failed: {n} error.", n=1) }}{% else %}{{ t("Validation failed: {n} errors.", n=errors|length) }}{% endif %}</b> {{ t("Fix and upload again. Nothing is saved until the file passes.") }}</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>{{ t("Row") }}</th><th>id</th><th>{{ t("Column") }}</th><th>{{ t("Error") }}</th></tr></thead>
+  <tbody>{% for error in errors %}<tr><td class="mono">{{ error.row }}</td><td class="mono">{{ error.id }}</td><td class="mono">{{ error.column }}</td><td>{{ t(error.error) }}</td></tr>{% endfor %}</tbody>
+</table>
+</div>
+{% endif %}
+
+<h2>{{ t("Versions") }}</h2>
+{% if versions %}
+<div class="scroll">
+<table>
+  <thead><tr><th>Version</th><th>{{ t("Cases") }}</th><th>{{ t("Status") }}</th><th>{{ t("Locked by") }}</th><th><span class="sr">{{ t("Action") }}</span></th></tr></thead>
+  <tbody>
+  {% for version in versions %}
+  <tr>
+    <td class="mono">{{ version.label or 'Draft' }}</td>
+    <td>{% for name, n in version.counts.items() %}{{ name }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
+    <td><span class="b {{ 'ok' if version.status == 'Locked' else 'neu' }}">{{ version.status }}</span></td>
+    <td>{{ version.locked_by or '—' }}</td>
+    <td><div class="actions">
+      <a class="btn sec" href="{{ url_for('portal.view_version', version_id=version.id) }}">View<span class="sr"> {{ version.label or 'Draft' }}</span></a>
+      {% if version.status == 'Draft' and g.user.role == 'BA' %}
+      {{ lock(version, next_label) }}
+      {% endif %}
+    </div></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="hint">{{ t("No file uploaded yet. QC uploads the .xlsx here, then BA locks the version so official runs can use it.") }}</p>
+{% endif %}
+{% endblock %}

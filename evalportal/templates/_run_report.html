@@ -1,0 +1,44 @@
+{# Run page, Report tab (included by run.html): the judge's verdicts before review. #}
+{% macro bar(passed, total) %}<svg class="bar" viewBox="0 0 {{ total or 1 }} 1" preserveAspectRatio="none" aria-hidden="true"><rect width="{{ total or 1 }}" height="1" fill="#C50F1F"/><rect width="{{ passed }}" height="1" fill="#107C10"/></svg>{% endmacro %}
+{% macro tally(pair) %}<span class="c">{{ pair[0] }}/{{ pair[1] }} [{{ pair|rate }}]</span>{% endmacro %}
+{% if blind %}
+<p class="msg wrn">{{ t("The report shows the judge's verdicts, so it stays closed until Independent 50 is finished.") }}</p>
+{% else %}
+<p class="hint">{{ t("These are the judge's verdicts before review, so they do not change with QC's decisions.") }}</p>
+<h2 class="report-title">{{ t("AI Evaluation Report") }}</h2>
+<details class="tree" open><summary>{{ bar(summary.judge[0], summary.judge[1]) }}<span class="n">{{ t("All Evaluations") }}</span>{{ tally(summary.judge) }}</summary>
+{% for group in groups %}
+  <details class="tree" {% if open_case and open_case in group.rows|map(attribute='case_id') %}open{% endif %}>
+    <summary>{{ bar(group.passed[0], group.passed[1]) }}<span class="n">{{ group.name }}</span>{{ tally(group.passed) }}</summary>
+    {% for row in group.rows %}
+    {% set passed = (1 if row.judge_pass else 0, 1) %}
+    <details class="tree case" id="{{ row.case_id }}" {% if open_case == row.case_id %}open{% endif %}>
+      <summary>{{ bar(passed[0], 1) }}<span class="n">{{ row.case_id }}</span>{{ tally(passed) }}<span class="qq">{{ row.question }}</span></summary>
+      <div class="cards">
+        <span class="mcard {{ 'g' if row.judge_pass else 'r' }}">{{ t("Overall result") }}<b>{{ 'Pass' if row.judge_pass else 'Fail' }}</b></span>
+        {% for name, metric in row.metrics.items() %}
+        <span class="mcard {{ 'g' if metric.pass else 'r' }}">{{ name }}<b>{{ metric.detail or ('Pass' if metric.pass else 'Fail') }}</b></span>
+        {% endfor %}
+      </div>
+      <div class="cards">
+        {% for name in rule_names %}{% if row.rules.get(name) is not none and name in row.rules %}
+        <span class="mcard {{ 'g' if row.rules[name] else 'a' }}">{{ t("Rule: {name}", name=name) }}<b>{{ 'Pass' if row.rules[name] else 'Fail' }}</b></span>
+        {% endif %}{% endfor %}
+      </div>
+      {% for name, metric in row.metrics.items() %}{% if not metric.pass and metric.reason %}
+      <p class="det"><b>{{ name }}</b> · {{ t("Reason: {reason}", reason=metric.reason) }}</p>
+      {% endif %}{% endfor %}
+      {% if open_case == row.case_id %}<p><a class="btn sec" href="{{ url_for('portal.run_page', run_id=run.id, tab='review', chip=back_chip, case=row.case_id) }}">{{ t("Back to review") }}</a></p>{% endif %}
+      <details class="tree" open><summary><span class="n">{{ t("Conversation") }}</span></summary>
+      {% for turn in row.turns %}
+        <div class="role {{ turn.role }}">{{ turn.role }}</div>
+        <div class="bub {{ turn.role }}">{% if turn.role == 'assistant' %}{{ turn.text|mark_made_up(row.metrics) }}{% else %}{{ turn.text }}{% endif %}</div>
+      {% endfor %}
+      </details>
+    </details>
+    {% endfor %}
+  </details>
+{% endfor %}
+</details>
+<p class="gen">{{ t("Generated at {time} by Chatbot Eval Portal · judge prompt {prompt}", time=run.finished_at|replace('+00:00', 'Z'), prompt=run.judge_prompt) }}</p>
+{% endif %}

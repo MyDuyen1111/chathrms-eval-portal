@@ -1,0 +1,9 @@
+# Exam content and local tools never go into an image.
+.git
+.venv
+instance
+samples
+*.xlsx
+3-11 testing update documents
+.claude
+.agents

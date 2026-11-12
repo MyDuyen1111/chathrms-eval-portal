@@ -1,0 +1,131 @@
+{# Run page, Review tab (included by run.html): QC's lists, the case panel and the review form. #}
+{% macro verdict(passed) %}<span class="b {{ 'ok' if passed else 'bad' }}">{{ 'Pass' if passed else 'Fail' }}</span>{% endmacro %}
+{% if blind %}<p class="msg wrn">{{ t("Baseline: grade Independent 50 first. The judge's verdict on a case appears after you save it, and the other chips open when all of them are saved.") }}</p>{% endif %}
+{% if saved %}
+<p class="msg ok" role="status">{{ t("Saved") }} <a href="{{ url_for('portal.run_page', run_id=run.id, tab='review', chip='all', case=saved.case_id) }}">{{ saved.case_id }}</a>.
+  {% if saved.sample == 'independent' and selected and selected.case_id == saved.case_id %}{{ t("You said {qc}; the judge said {judge}.", qc=saved.review.qc_result, judge='Pass' if saved.judge_pass else 'Fail') }}{% endif %}
+  {% if moved %}{{ t("Next list: {list}.", list=chip_label) }}{% endif %}</p>
+{% endif %}
+{% if summary.complete %}
+<p class="msg ok" role="status">{{ t("Review complete: {done} / {total}.", done=summary.reviewed, total=summary.need) }} <a href="{{ url_for('portal.run_page', run_id=run.id) }}">{{ t("See the numbers on Summary") }}</a>{% if run.milestone and g.user.role == 'QC' %} · <a href="{{ url_for('portal.fail_list', run_id=run.id) }}">Export Fail list</a>{% endif %}</p>
+{% endif %}
+<div class="rbar">
+  <div class="chips">
+    {% for item in chips %}
+      {% if item.enabled %}
+      <a class="chip" href="{{ url_for('portal.run_page', run_id=run.id, tab='review', chip=item.key) }}" {% if item.key == chip %}aria-current="true"{% endif %}>{{ item.label }} {{ item.n }}{% if item.left is not none %} · {{ t("{n} left", n=item.left) if item.left else t("done") }}{% endif %}</a>
+      {% else %}
+      <span class="chip off">{{ item.label }}</span>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <div class="rprog">{{ t("Reviewed") }} <b>{{ progress|count }}</b></div>
+</div>
+<div class="split{{ ' open' if selected }}">
+  <ul class="list" aria-label="{{ t('{list} cases', list=chip_label) }}">
+    {% for row in listed %}
+    {% set here = selected and row.result_id == selected.result_id %}
+    <li><a class="item {{ ('pass' if row.review.qc_result == 'Pass' else 'fail') if row.review else 'todo' }}{{ ' sel' if here }}" href="{{ url_for('portal.run_page', run_id=run.id, tab='review', chip=chip, case=row.case_id) }}" {% if here %}aria-current="true"{% endif %}>
+      <span class="ihead"><b class="mono">{{ row.case_id }}</b> {{ row.topic_group }}</span>
+      <span class="iq">{{ row.question }}</span>
+      <span class="imeta">
+        <span>Judge {% if blind and not row.review %}<span class="b neu">{{ t("Hidden") }}</span>{% else %}{{ verdict(row.judge_pass) }}{% endif %}</span>
+        <span>QC {% if row.review %}{{ verdict(row.review.qc_result == 'Pass') }}{% else %}<span class="dim">{{ t("Not reviewed") }}</span>{% endif %}</span>
+        {% if row.review and row.review.owner %}<span>{{ row.review.owner }}{% if row.review.failure_type %} · {{ row.review.failure_type }}{% endif %}</span>{% endif %}
+      </span>
+    </a></li>
+    {% else %}
+    <li class="dim">{{ t("No cases in this list.") }}</li>
+    {% endfor %}
+  </ul>
+  {% if selected %}
+  <section class="card panel" aria-labelledby="case-head">
+    <div class="phead">
+      <h2 id="case-head" class="casehead"><span class="mono">{{ selected.case_id }}</span> · {{ selected.topic_group }}</h2>
+      <a class="x" href="{{ url_for('portal.run_page', run_id=run.id, tab='review', chip=chip) }}" aria-label="{{ t('Close {case}', case=selected.case_id) }}" title="{{ t('Close') }}">&#x2715;</a>
+    </div>
+    <div class="status">
+      {% for reason in why_listed %}<span class="b run">{{ reason }}</span>{% endfor %}
+      {% if selected.review %}<span>QC {{ verdict(selected.review.qc_result == 'Pass') }}{% if selected.review.owner %} · {{ selected.review.owner }}{% endif %}{% if selected.review.failure_type %} · {{ selected.review.failure_type }}{% endif %}</span>
+      {% else %}<span class="b neu">{{ t("Not reviewed") }}</span>{% endif %}
+    </div>
+    {# Not in the handbook mock, but QC cannot grade without the question and the expected answer. #}
+    <h3>{{ t("Question") }}</h3>
+    <p class="question">{{ selected.question }}</p>
+    <section class="side" aria-labelledby="side-bot">
+      <h3 id="side-bot">{{ t("Chatbot answer") }}</h3>
+      <p>{% if not selected.scored %}{{ t("No answer was received.") }}{% elif hidden %}{{ selected.scored }}{% else %}{{ selected.scored|mark_made_up(selected.metrics) }}{% endif %}</p>
+      {# While blind the report is closed, so this is the only place QC can read the earlier turns. #}
+      {% if selected.turns|length > 2 %}
+      <details class="more"><summary>{{ t("Full conversation, {n} messages", n=selected.turns|length) }}</summary>
+        {% for turn in selected.turns %}<div class="role {{ turn.role }}">{{ turn.role }}</div><div class="bub {{ turn.role }}">{{ turn.text }}</div>{% endfor %}
+      </details>
+      {% endif %}
+    </section>
+    {# Each check carries what QC compares by eye: the eval set's side next to the chatbot's. #}
+    <h3>{{ t("What to check") }}</h3>
+    <ol class="checks">
+      {% for check in checks %}
+      <li><div><b>{{ check.name }}</b> {{ check.ask }}</div>
+        <div class="verdict">{% if hidden %}<span class="b neu">{{ t("Hidden") }}</span>{% else %}{{ verdict(check.result.pass) }}{% if check.result.detail %} <span class="dim">{{ check.result.detail }}</span>{% endif %}{% endif %}</div>
+        {% if check.name == 'Behavior' and selected.set != 'Safety' %}
+        <div class="ev"><div><span class="lab">{{ t("Eval set expects") }}</span><b>{{ selected.expected_behavior }}</b></div></div>
+        {% elif check.name == 'Key facts' %}
+        {% set present = none if hidden else check.result.present %}
+        <div class="ev"><div><span class="lab">{{ t("Key facts in the eval set") }}{% if present %} · {{ t("✓ the judge found it in the answer") }}{% endif %}</span>
+          <ol class="facts">{% for fact in key_facts %}<li>{% if present %}{% if present[loop.index0] %}<span class="got" title="{{ t('Stated') }}">&#x2713;</span><span class="sr">{{ t("stated:") }} </span>{% else %}<span class="miss" title="{{ t('Missing') }}">&#x2717;</span><span class="sr">{{ t("missing:") }} </span>{% endif %}{% endif %}{{ fact }}</li>{% endfor %}</ol></div></div>
+        {% elif check.name == 'Groundedness' %}
+        <div class="ev"><div><span class="lab" id="ctx-label">{{ t("What the chatbot retrieved from the documents") }}</span>
+          {% if selected.context is none %}<p class="hint">{{ t("Not kept for this run: runs started before this view existed did not save it.") }}</p>
+          {% elif not selected.context.strip() %}<p class="hint">{{ t("The chatbot retrieved nothing.") }}</p>
+          {% else %}<div class="ctx" tabindex="0" role="region" aria-labelledby="ctx-label">{{ selected.context }}</div>{% endif %}</div></div>
+        {% elif check.name == 'Citation' %}
+        <div class="ev">
+          <div><span class="lab">{{ t("Eval set source") }}</span>{{ selected.source_document or "—" }}{% if selected.location %} · {{ selected.location }}{% endif %}</div>
+          <div><span class="lab">{{ t("Chatbot cited") }}</span>{% for citation in selected.citations %}{{ citation.document }}{% if citation.sections %} · {{ citation.sections|join(', ') }}{% endif %}{% if citation.pages %} · {{ t("p. {pages}", pages=citation.pages|join(', ')) }}{% endif %}{% if not loop.last %}; {% endif %}{% else %}{{ t("nothing") }}{% endfor %}</div>
+        </div>
+        {% endif %}
+        {% if not hidden and check.result.reason %}<p class="hint why">Judge: {{ check.result.reason }}</p>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="hint">{% if hidden %}{{ t("Hidden until you save: grade it yourself first.") }}{% else %}{{ t("The case passes only when every check passes. Required rules are counted on Summary and never fail a case.") }}{% endif %}</p>
+    {% if selected.review %}<p class="hint">{{ t("Last saved by {name} on {date}", name=selected.review.reviewed_by, date=selected.review.reviewed_at[:10]) }}{% if g.user.role != 'QC' %}: {{ selected.review.qc_result }}{% if selected.review.owner %} · {{ selected.review.owner }}{% endif %}{% if selected.review.note %} · {{ selected.review.note }}{% endif %}{% endif %}.</p>{% endif %}
+    {% if g.user.role == 'QC' %}
+    <form method="post" id="review-form" action="{{ url_for('portal.save_review', run_id=run.id, result_id=selected.result_id, tab='review', chip=chip, case=selected.case_id) }}">
+      {{ csrf_field() }}
+      <input type="hidden" name="chip" value="{{ chip }}">
+      {% if g.get('review_error') %}<p class="msg err" role="alert">{{ g.review_error }}</p>{% endif %}
+      {% set current = (request.form if g.get('review_error') else selected.review) or {} %}
+      <div class="field" role="radiogroup" aria-labelledby="qc-label"><span id="qc-label">QC result</span>
+        <div class="seg">
+          <input class="sr" type="radio" id="qc-pass" name="qc_result" value="Pass" required {% if not selected.review %}data-focus{% endif %} {% if current.qc_result == 'Pass' %}checked{% endif %}><label for="qc-pass">Pass</label>
+          <input class="sr" type="radio" id="qc-fail" name="qc_result" value="Fail" {% if current.qc_result == 'Fail' %}checked{% endif %}><label for="qc-fail">Fail</label>
+        </div></div>
+      {# Without JS both fields stay visible and the server still checks them. #}
+      <div class="field" id="owner-field"><label for="owner">Owner</label>
+        <select id="owner" name="owner"><option value="">{{ t("Choose an owner") }}</option>
+          {% for item, meaning in (('Document', t('the document is wrong, not counted')), ('Eval set', t('the expected answer is wrong, not counted')), ('Bot', t('everything else'))) %}
+          <option value="{{ item }}" {% if current.owner == item %}selected{% endif %}>{{ item }}: {{ meaning }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field" id="type-field"><label for="failure_type">Failure type</label>
+        <div><select id="failure_type" name="failure_type"><option value="">{{ t("Choose a failure type") }}</option>{% for item in failure_types %}<option {% if (current.failure_type or suggested) == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+        {% if suggested %}<p class="hint">{{ t("Filled in from the judge's failing metric. Change it if the main cause is different.") }}</p>{% endif %}</div></div>
+      <div class="field"><span></span>
+        <label class="choice"><input type="checkbox" name="wrong_location" {% if current.wrong_location %}checked{% endif %}> Wrong location: {{ t("right document, wrong section or page") }}</label></div>
+      <div class="field"><label for="note">Note</label><textarea id="note" name="note" rows="2" maxlength="1000" placeholder="{{ t('One short sentence: why') }}">{{ current.note or '' }}</textarea></div>
+      <div class="row end">
+        {% if selected.review and next_up %}<a class="btn sec" {% if saved and saved.case_id == selected.case_id %}data-focus{% endif %} href="{{ url_for('portal.run_page', run_id=run.id, tab='review', chip=next_up[0], case=next_up[1]) }}">Next unreviewed</a>{% endif %}
+        {% if not blind %}<a class="btn sec" href="{{ url_for('portal.run_page', run_id=run.id, tab='report', chip=chip, case=selected.case_id) }}#{{ selected.case_id }}">Open in report</a>{% endif %}
+        <button class="btn" data-busy="{{ t('Saving…') }}">{{ save_label }}</button>
+      </div>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+<footer class="foot">
+  <span>{{ t('False pass (independent)') if baseline else t('Disagreement (random 15)') }}: <b>{{ (summary.disagreement|count ~ ' = ' ~ summary.disagreement|rate) if summary.disagreement else t('not ready') }}</b></span>
+  <span>{{ t("Acceptance after review") }}: <b>{{ summary.acceptance|rate if summary.complete else t('not ready') }}</b></span>
+</footer>

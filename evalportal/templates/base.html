@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="{{ lang() }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Chatbot Eval Portal{% endblock %}</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}">
+<script src="{{ url_for('static', filename='portal.js') }}" defer></script>
+{% block head %}{% endblock %}
+</head>
+<body>
+<a class="skip" href="#main">{{ t("Skip to content") }}</a>
+<header class="top">
+  <span class="app">Chatbot Eval Portal</span>
+  {% if using_mocks() %}<span class="mk" title="{{ t('The chatbot or the judge is a mock. Numbers here are not real.') }}">Mock data</span>{% endif %}
+  {# The language switch, also on the sign-in page. #}
+  <span class="langs" aria-label="Language">{% for code, name in (('en', 'EN'), ('vi', 'VI')) %}<a href="{{ url_for('portal.set_language', code=code, next=request.full_path) }}" lang="{{ code }}" {% if lang() == code %}aria-current="true"{% endif %}>{{ name }}</a>{% endfor %}</span>
+  {% if g.user %}
+  <span class="usr">
+    <a href="{{ url_for('portal.password') }}">{{ t("Password") }}</a>
+    <form method="post" action="{{ url_for('portal.logout') }}" class="inline">
+      {{ csrf_field() }}
+      <button class="link">{{ t("Sign out") }}</button>
+    </form>
+    <span class="who">{{ g.user.name }} <i aria-hidden="true">{% for word in g.user.name.split()[:2] %}{{ word[0]|upper }}{% endfor %}</i></span>
+  </span>
+  {% endif %}
+</header>
+<div class="body">
+  {% if g.user and not g.user.must_change %}
+  <nav class="nav" aria-label="{{ t('Main') }}">
+    {% set here = request.endpoint %}
+    {% if g.user.role == 'Administrator' %}
+    <a href="{{ url_for('portal.users') }}" {% if here == 'portal.users' or here == 'portal.reset_password' %}aria-current="page"{% endif %}>{{ t("Users") }}</a>
+    <a href="{{ url_for('portal.judge_settings') }}" {% if here in ('portal.judge_settings', 'portal.test_judge') %}aria-current="page"{% endif %}>Judge</a>
+    {% else %}
+    <a href="{{ url_for('portal.eval_sets') }}" {% if here in ('portal.eval_sets', 'portal.upload', 'portal.view_version') %}aria-current="page"{% endif %}>Eval sets</a>
+    <a href="{{ url_for('portal.runs') }}" {% if here in ('portal.runs', 'portal.new_run', 'portal.run_page', 'portal.save_review') %}aria-current="page"{% endif %}>Runs</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+  <main class="main" id="main">{% block content %}{% endblock %}</main>
+</div>
+</body>
+</html>

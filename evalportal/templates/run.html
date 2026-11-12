@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{% if run.status != 'Completed' %}{{ run.status }} · {% endif %}{{ run.name }} · Chatbot Eval Portal{% endblock %}
+{% block head %}{% if run.status == 'Running' %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block content %}
+<p class="crumb"><a href="{{ url_for('portal.runs') }}">Runs</a> / {{ run.name }}</p>
+{# Review and Report need the room; the name stays in the crumb. #}
+{% set compact = run.status == 'Completed' and tab != 'summary' %}
+<h1 {% if compact %}class="sr"{% endif %}>{{ run.name }}
+  <span class="b {{ {'Completed': 'ok', 'Running': 'run', 'Failed': 'bad'}[run.status] }}">{{ run.status }}</span>
+  <span class="b neu">{{ run.run_type }}{% if run.milestone %} · {{ run.milestone }}{% endif %}</span></h1>
+{% if not compact %}<ol class="steps">{% for step in steps %}<li class="{{ step.state }}">{{ step.name }}</li>{% endfor %}</ol>{% endif %}
+
+{% if telemetry.models and telemetry.models|length > 1 %}
+<p class="msg wrn" role="status">{{ t("The router answered with more than one model in this run ({models}), so these verdicts did not all come from one judge. Check the router's fallback settings before trusting them.", models=telemetry.models|join(', ')) }}</p>
+{% endif %}
+{% if run.status == 'Running' %}
+<progress max="{{ run.total or 1 }}" value="{{ run.done }}" aria-label="{{ t('Progress of the current step') }}"></progress>
+<p>{{ t("Started") }} <time datetime="{{ run.started_at }}" data-local>{{ run.started_at[11:16] }} UTC</time> {{ t("by {name}. You can leave this page; the run keeps going.", name=run.started_by) }}</p>
+<div class="tabs off" aria-hidden="true"><span>Summary</span><span>Report</span><span>Review</span></div>
+<p class="msg" role="status">{{ t("Results appear when the run completes.") }}</p>
+{% elif failure %}
+<p class="msg err" role="alert"><b>{{ failure }}</b> {{ run.error }}</p>
+<pre id="error-details" class="sr">{{ copy_text }}</pre>
+<div class="row"><button class="btn sec" data-copy="error-details">Copy error details</button></div>
+<p class="hint">{{ t("Copies run id, failed step, error message and case number, with no question or answer text. Send it to the AI team. Do not start a rerun yourself.") }}</p>
+{% else %}
+<nav class="tabs" aria-label="Run">
+  {% for key, label in (('summary', 'Summary'), ('report', 'Report'), ('review', 'Review')) %}
+  <a href="{{ url_for('portal.run_page', run_id=run.id, tab=key) }}" {% if key == tab %}aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+{% if tab == 'summary' %}{% include "_run_summary.html" %}
+{% elif tab == 'report' %}{% include "_run_report.html" %}
+{% elif is_dry %}
+<p class="hint">{{ t("A dry run is not reviewed and is never reported.") }}</p>
+{% else %}
+{% include "_run_review.html" %}
+{% endif %}
+{% endif %}
+{# Tokens only: the router does not report a price, and its providers differ. #}
+{% if telemetry and (run.status == 'Failed' or tab == 'summary') %}
+<p class="gen">{{ t("Calls: {n} chatbot turns", n=telemetry.chat_turns) }} ·
+  {% if telemetry.judge_calls is defined %}{{ t("{n} judge calls", n=telemetry.judge_calls) }} ·
+  {% if telemetry.prompt_tokens %}{{ t("{prompt} tokens in, {completion} out", prompt='{:,}'.format(telemetry.prompt_tokens), completion='{:,}'.format(telemetry.completion_tokens)) }}{% else %}{{ t("tokens not reported by the router") }}{% endif %} ·
+  {{ t("answered by {models}", models=telemetry.models|join(', ') or t('an unnamed model')) }} ·
+  {{ t("case text sent to {endpoint}", endpoint=telemetry.endpoint) }}{% else %}{{ t("mock judge, no case text left the portal") }}{% endif %}</p>
+{% endif %}
+{% endblock %}

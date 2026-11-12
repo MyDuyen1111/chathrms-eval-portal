@@ -1,0 +1,17 @@
+{# An action that cannot be undone: the first click only opens the question. #}
+{% macro confirm(action, label, question, yes, busy, style='btn') %}
+<details class="confirm">
+  <summary class="{{ style }}">{{ label }}</summary>
+  <form method="post" action="{{ action }}">
+    {{ csrf_field() }}
+    <span>{{ question }}</span>
+    <button type="button" class="btn sec" data-close>{{ t("Cancel") }}</button>
+    <button class="btn" data-busy="{{ busy }}">{{ yes }}</button>
+  </form>
+</details>
+{% endmacro %}
+
+{# BA locks a Draft as the next gs label, on the Eval sets list and on the version page. #}
+{% macro lock(version, next_label) %}
+{{ confirm(url_for('portal.lock', version_id=version.id), 'Lock', t("Lock as {label}? A locked version cannot change.", label=next_label), t("Lock as {label}", label=next_label), t("Locking…")) }}
+{% endmacro %}

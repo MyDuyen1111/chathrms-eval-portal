@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ t("Sign in") }} · Chatbot Eval Portal{% endblock %}
+{% block content %}
+<section class="auth">
+  <h1>{{ t("Sign in") }}</h1>
+  <p class="lede">{{ t("Run the chatbot on an eval set, review what the judge decided, and report the numbers.") }}</p>
+  {% if error %}<p class="msg err" role="alert">{{ error }}</p>{% endif %}
+  <form method="post">
+    {{ csrf_field() }}
+    {# After a failed try the username stays, so only the password is typed again. #}
+    <div class="field"><label for="username">{{ t("Username") }}</label><input id="username" name="username" value="{{ request.form.get('username', '') }}" autocomplete="username" autocapitalize="none" spellcheck="false" required {% if not error %}autofocus{% endif %}></div>
+    <div class="field"><label for="password">{{ t("Password") }}</label><input id="password" name="password" type="password" autocomplete="current-password" required {% if error %}autofocus{% endif %}></div>
+    {# Hidden without JS, where it could not work. #}
+    <label class="choice reveal" hidden><input type="checkbox" data-reveal="password"> {{ t("Show password") }}</label>
+    <button class="btn" data-busy="{{ t('Signing in…') }}">{{ t("Sign in") }}</button>
+  </form>
+  <p class="hint foot">{{ t("Forgot your password? Ask your Administrator to reset it.") }}</p>
+</section>
+{% endblock %}

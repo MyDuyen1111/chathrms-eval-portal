@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_ui.html" import lock %}
+{% block title %}{{ version.product }} eval set {{ version.label or version.status }} · Chatbot Eval Portal{% endblock %}
+{% block content %}
+<p class="crumb"><a href="{{ url_for('portal.eval_sets', product=version.product) }}">Eval sets</a> / {{ version.product }} / {{ version.label or version.status }}</p>
+<div class="titlebar">
+  <h1>{{ version.product }} eval set {{ version.label or '' }} <span class="b {{ 'ok' if version.status == 'Locked' else 'neu' }}">{{ version.status }}</span></h1>
+  {% if version.status == 'Draft' and g.user.role == 'BA' %}
+  {{ lock(version, next_label) }}
+  {% endif %}
+</div>
+<p class="hint">{{ t("{file} · uploaded by {name} · {rows} rows", file=version.filename, name=version.uploaded_by, rows=cases|length) }}</p>
+<div class="sheet" tabindex="0" role="region" aria-label="{{ t('Cases in this version') }}">
+<table>
+  <thead><tr>{% for column in columns %}<th>{{ sheet_names.get(column, column) }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for case in cases %}
+  <tr>{% for column in columns %}<td{% if column == 'id' %} class="mono"{% elif column in ('question', 'key_facts') %} class="wide"{% endif %}>{{ case[column] or '—' }}</td>{% endfor %}</tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

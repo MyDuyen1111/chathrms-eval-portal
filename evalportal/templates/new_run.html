@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}New run · Chatbot Eval Portal{% endblock %}
+{% block content %}
+<p class="crumb"><a href="{{ url_for('portal.runs') }}">Runs</a> / New run</p>
+<h1>New run</h1>
+{% if error %}<p class="msg err" role="alert">{{ error }}</p>{% endif %}
+<form method="post" id="new-run" class="form">
+  {{ csrf_field() }}
+  <div class="field"><label for="product">Product</label>
+    <select id="product" name="product" data-reload {% if 'product' in request.args %}autofocus{% endif %}>{% for item in products %}<option data-tag="{{ item }}" {% if item == product %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="set">Set</label>
+    <select id="set" name="set">{% for item in sets %}<option data-tag="{{ set_tags[item] }}" {% if form.get('set') == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="version">Eval set version</label>
+    {% if versions %}
+    <select id="version" name="version" required>
+      {% for version in versions %}
+      <option value="{{ version.id }}" data-tag="{{ version.label }}" {% if chosen_version == version.id|string %}selected{% endif %}>{{ t("{label} · locked", label=version.label) }}</option>
+      {% endfor %}
+    </select>
+    {% else %}
+    <select id="version" name="version" required disabled><option value="">{{ t("No locked version yet. Upload on Eval sets, then BA locks it.") }}</option></select>
+    {% endif %}</div>
+  <div class="field"><label for="build">Build</label>
+    <select id="build" name="build"><option value="{{ build }}" data-tag="{{ build }}">{{ t("{build} · on QA environment", build=build) }}</option></select></div>
+  {# No default: a run started on the wrong milestone reviews the wrong sample, and Baseline hides the judge. #}
+  <div class="field"><label for="milestone">Milestone</label>
+    <select id="milestone" name="milestone" required>
+      <option value="" {% if not form.get('milestone') %}selected{% endif %}>{{ t("Choose a milestone") }}</option>
+      {% for item, tag in milestones.items() %}<option data-tag="{{ tag }}" {% if form.get('milestone') == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
+    </select></div>
+  <div class="field" role="radiogroup" aria-labelledby="type-label"><span id="type-label">Run type</span>
+    <div class="radio">
+      {% for item in run_types %}
+      <label class="choice"><input type="radio" name="run_type" value="{{ item }}" {% if form.get('run_type', 'Official') == item %}checked{% endif %}> {{ item }}</label>
+      {% endfor %}
+    </div></div>
+  <div class="field"><span id="name-label">{{ t("Run name") }}</span><output id="run-name" class="ro" aria-labelledby="name-label"></output></div>
+  <div class="field"><span id="judge-label">Judge</span><output class="ro" aria-labelledby="judge-label">{% if judge.settings %}{{ t("{model}. Case text goes to {endpoint}", model=judge.settings.model, endpoint=judge.settings.endpoint) }}{% else %}{{ t("Mock judge. Its verdicts are not real, and no case text leaves the portal") }}{% endif %}</output></div>
+  <div class="field"><span></span>
+    <label class="choice"><input type="checkbox" name="quick_checks" {% if form.get('quick_checks') == 'on' %}checked{% endif %}> {{ t("AI team confirmed Quick checks 100% Pass on {build}", build=build) }}</label></div>
+  <div class="row end">
+    <a class="btn sec" href="{{ url_for('portal.runs') }}">{{ t("Cancel") }}</a>
+    <button class="btn" data-busy="{{ t('Starting…') }}">Start run</button>
+  </div>
+</form>
+{% endblock %}

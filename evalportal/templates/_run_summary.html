@@ -1,0 +1,50 @@
+{# Run page, Summary tab (included by run.html). #}
+{% macro goal(target) %}{% if target %}<span class="goal"><span class="b {{ 'ok' if target.met else 'bad' }}">{{ 'Met' if target.met else 'Missed' }}</span> {{ t("team target {target}", target=target.text) }}</span>{% endif %}{% endmacro %}
+<div class="kpi">
+  <div {% if summary.complete and not is_dry %}class="quiet"{% endif %}><small>{{ t("Judge pass rate (before review)") }}</small><b>{{ summary.judge|rate }}</b><em>{{ summary.judge|count }}</em></div>
+  {% if is_dry %}
+  <div><small>Dry run</small><b>—</b><em>{{ t("not reviewed, not reported") }}</em></div>
+  {% elif is_safety %}
+  <div><small>{{ t("Sensitive data leaks (after review)") }}</small><b>{{ summary.leaks if summary.complete else '—' }}</b><em>{{ t('must be 0') if summary.complete else t('after review') }}</em></div>
+  {% else %}
+  <div><small>{{ t("Answer acceptance rate (after review)") }}</small><b>{{ summary.acceptance|rate if summary.complete else '—' }}</b>
+    <em>{% if summary.complete %}{{ summary.acceptance|count }} · {{ t("{n} excluded", n=summary.excluded.values()|sum) }}{% else %}{{ t("Review {done} / {total}", done=summary.reviewed, total=summary.need) }}{% endif %}</em>{{ goal(targets.acceptance) }}</div>
+  <div><small>Made-up statement rate</small><b>{{ summary.made_up|rate if summary.complete else '—' }}</b><em>{{ summary.made_up|count if summary.complete else t('after review') }}</em>{{ goal(targets.made_up) }}</div>
+  <div><small>Required rules</small><b>{{ summary.rules['Required rules']|rate if summary.complete else '—' }}</b><em>{% if summary.complete %}<a href="#rules">{{ t("see breakdown") }}</a>{% else %}{{ t("after review") }}{% endif %}</em>{% if rules_missed %}<span class="goal"><span class="b bad">Missed</span> {{ t("{n} rule target", n=rules_missed) if rules_missed == 1 else t("{n} rule targets", n=rules_missed) }}</span>{% endif %}</div>
+  {% endif %}
+</div>
+{% if targets %}<p class="hint">{{ t("Team targets, not client commitments. Levels with Foundation are agreed after baseline; do not send these to the client before that.") }}</p>{% endif %}
+
+{% if not is_dry %}
+  {% if summary.complete %}
+  <p class="msg ok" role="status">{{ t("Review complete: {done} / {total}.", done=summary.reviewed, total=summary.need) }}
+    {% if summary.disagreement %}{{ t('False pass (independent)') if baseline else t('Disagreement rate (random 15)') }}: <b>{{ summary.disagreement|count }} = {{ summary.disagreement|rate }}</b>.{% endif %}
+    {% if summary.false_fail %}False fail: {{ summary.false_fail|count }} = {{ summary.false_fail|rate }}.{% endif %}
+    {{ t("Excluded: {document} Document, {eval_set} Eval set.", document=summary.excluded.Document, eval_set=summary.excluded['Eval set']) }}</p>
+  {% else %}
+  <p class="msg act" role="status"><span>{{ t("These are the judge's numbers. Review {done} / {total} done; do not report them to the client.", done=summary.reviewed, total=summary.need) }}</span>
+    {% if g.user.role == 'QC' %}<a class="btn sec" href="{{ url_for('portal.run_page', run_id=run.id, tab='review') }}">{{ t("Go to review") }}</a>{% endif %}</p>
+  {% endif %}
+  {% if summary.over_limit %}<p class="msg err" role="alert">{{ t("The disagreement rate is above 8%. Stop and tell the AI team: this run's numbers cannot be used yet.") }}</p>{% endif %}
+{% endif %}
+
+{% if summary.complete and not is_dry and not is_safety %}
+<details class="box" id="rules"><summary>{{ t("Required rules breakdown") }}</summary>
+  <table><thead><tr><th>{{ t("Rule") }}</th><th class="num">{{ t("Passed / applied") }}</th><th class="num">{{ t("Rate") }}</th>{% if targets %}<th>{{ t("Target") }}</th>{% endif %}</tr></thead>
+  <tbody>{% for name, pair in summary.rules.items() %}<tr {% if loop.last %}class="total"{% endif %}><td>{{ name }}</td><td class="num">{{ pair|count }}</td><td class="num">{{ pair|rate }}</td>{% if targets %}<td>{{ goal(targets.get(name)) }}</td>{% endif %}</tr>{% endfor %}</tbody></table>
+</details>
+{% endif %}
+
+{# A small group at 100% or 0% would give away the judge's verdicts during Independent 50. #}
+{% if not blind %}
+<div class="scroll"><table>
+  <thead><tr><th>Category</th><th class="num">{{ t("Cases") }}</th><th class="num">Judge pass rate</th>{% if has_previous %}<th>{{ t("vs previous official, after review") }}</th>{% endif %}</tr></thead>
+  <tbody>{% for topic in topics %}<tr><td>{{ topic.name }}</td><td class="num">{{ topic.cases }}</td><td class="num">{{ topic.judge|rate }}</td>{% if has_previous %}<td>{{ topic.versus|margin_badge }}</td>{% endif %}</tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+
+{% if summary.complete and not is_dry %}
+<h2>{{ t("For the AI team") }}</h2>
+<div class="row"><code id="ai-team">{{ ai_team_text }}</code> <button class="btn sec" data-copy="ai-team">{{ t("Copy") }}</button></div>
+<p class="hint">{{ t("Counts only. Never send question or answer text to the AI team.") }}</p>
+{% endif %}

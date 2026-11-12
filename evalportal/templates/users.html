@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "_ui.html" import confirm %}
+{% block title %}{{ t("Users") }} · Chatbot Eval Portal{% endblock %}
+{% block content %}
+<div class="titlebar">
+  <h1>{{ t("Users") }}</h1>
+  <a class="btn" href="{{ url_for('portal.users', add=1) }}">{{ t("Add user") }}</a>
+</div>
+{% if message %}
+<p class="msg ok" role="status"><b>{{ message[0] }}: {{ message[1] }}.</b> {{ t("Temporary password, shown once:") }} <code id="temp">{{ message[2] }}</code>. {{ t("Send it privately; it must be changed at first sign-in.") }}
+  <button class="btn sec" data-copy="temp">{{ t("Copy") }}</button></p>
+{% endif %}
+{% if error %}<p class="msg err" role="alert">{{ error }}</p>{% endif %}
+{% if show_form %}
+<form method="post" action="{{ url_for('portal.users') }}" class="card form">
+  {{ csrf_field() }}
+  <div class="field"><label for="name">{{ t("Name") }}</label><input id="name" name="name" value="{{ request.form.get('name', '') }}" required autofocus></div>
+  <div class="field"><label for="uname">{{ t("Username") }}</label><input id="uname" name="username" value="{{ request.form.get('username', '') }}" required></div>
+  <div class="field"><label for="role">{{ t("Role") }}</label>
+    <select id="role" name="role">{% for item in ('QC', 'BA') %}<option {% if request.form.get('role') == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+  <div class="row end">
+    <a class="btn sec" href="{{ url_for('portal.users') }}">{{ t("Cancel") }}</a>
+    <button class="btn" data-busy="{{ t('Saving…') }}">{{ t("Add user") }}</button>
+  </div>
+</form>
+{% endif %}
+<div class="scroll">
+<table>
+  <thead><tr><th>{{ t("Name") }}</th><th>{{ t("Username") }}</th><th>{{ t("Role") }}</th><th>{{ t("Status") }}</th><th>{{ t("Last sign-in") }}</th><th><span class="sr">{{ t("Actions") }}</span></th></tr></thead>
+  <tbody>
+  {% for user in users %}
+  <tr {% if message and user.username == message[1] %}class="sel"{% endif %}>
+    <td>{{ user.name }}</td>
+    <td class="mono">{{ user.username }}</td>
+    <td>{{ user.role }}</td>
+    <td>
+      {% if user.disabled %}<span class="b neu">{{ t("Disabled") }}</span>
+      {% elif user.locked_until and user.locked_until > now %}<span class="b wrn">Locked</span>
+      {% elif user.must_change %}<span class="b wrn">{{ t("Must change password") }}</span>
+      {% else %}<span class="b ok">{{ t("Active") }}</span>{% endif %}
+    </td>
+    <td class="mono">{{ (user.last_signin or '—')[:10] }}</td>
+    <td><div class="actions">
+      {% if user.disabled %}
+      <form method="post" action="{{ url_for('portal.set_disabled', user_id=user.id, action='enable') }}" class="inline">{{ csrf_field() }}<button class="link">{{ t("Enable") }}</button></form>
+      {% elif user.role != 'Administrator' %}
+      {{ confirm(url_for('portal.reset_password', user_id=user.id), t('Reset password'), t('Reset {user}? Their current password and sessions stop working.', user=user.username), t('Reset password'), t('Resetting…'), 'link') }}
+      {{ confirm(url_for('portal.set_disabled', user_id=user.id, action='disable'), t('Disable'), t('Disable {user}? They can no longer sign in. Their name stays on past reviews.', user=user.username), t('Disable'), t('Disabling…'), 'link') }}
+      {% endif %}
+    </div></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

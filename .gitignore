@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+# Exam content must never reach git: portal data, secrets and every eval set file.
+instance/
+*.db
+*.db-*
+*.xlsx
+samples/
+# Kept out on purpose: the handbook stays with QC and BA, and these are local agent tools, not the portal.
+3-11 testing update documents/
+.claude/
+.agents/
+skills-lock.json
